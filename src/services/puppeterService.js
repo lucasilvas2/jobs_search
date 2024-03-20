@@ -20,7 +20,9 @@ class PuppeteerService {
     const context = this.browser.defaultBrowserContext();
     await context.overridePermissions(this.BASE_URL_LINKEDIN, [
       "clipboard-read",
-      'clipboard-write'
+      "clipboard-write",
+      "background-sync",
+      "clipboard-sanitized-write",
     ]);
     this.page = await this.browser.newPage();
     await this.page.setViewport({ width: 1280, height: 720 });
@@ -65,37 +67,45 @@ class PuppeteerService {
 
     let linksCopiados = [];
 
-    const botoesDropdown = await this.page.$$(".entity-result__actions-overflow-menu-dropdown > .artdeco-dropdown > button");
+    const botoesDropdown = await this.page.$$(
+      ".entity-result__actions-overflow-menu-dropdown > .artdeco-dropdown > button"
+    );
 
-    console.log(botoesDropdown)
     for (let botao of botoesDropdown) {
-
       await botao.click();
+      await this.page.waitForSelector('.artdeco-dropdown__content--is-open' , {  visible: true , timeout: 0 });
 
-      // break;
-      await this.page.evaluate(() => {
-        const botaoCopiarLink = Array.from(
+      const botaoCopiarLinkId = await this.page.evaluate(() => {
+        const botoes = Array.from(
           document.querySelectorAll('.artdeco-dropdown__item[role="button"]')
-        ).find((botao) => botao.textContent.includes("Copiar link"));
-        if (botaoCopiarLink) botaoCopiarLink.click();
+        );
+        const botaoCopiarLink = botoes.find((botao) =>
+          botao.textContent.includes("Copiar link")
+        );
+        return botaoCopiarLink ? botaoCopiarLink.getAttribute("id") : null;
       });
 
-      
-      // await example();
+      console.log(botaoCopiarLinkId)
+      if (botaoCopiarLinkId) {
+        await this.page.waitForSelector(`#${botaoCopiarLinkId}`, {
+          visible: true,
+        });
+        await this.page.click(`#${botaoCopiarLinkId}`);
+      }
+
+      await this.page.waitForSelector(".artdeco-toast-item, .artdeco-toast-item--visible, .ember-view",{ timeout: 0 });
+      await this.page.click(".artdeco-toast-item__dismiss");
 
       const linkCopiado = await this.page.evaluate(async () => {
-
         const text = await navigator.clipboard.readText();
-        return text; 
+        return text;
       });
-
 
       linksCopiados.push(linkCopiado);
     }
 
-    console.log(linksCopiados);
+    return linksCopiados;
   }
 }
 
 module.exports = PuppeteerService;
-
